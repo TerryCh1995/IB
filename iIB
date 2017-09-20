@@ -1,0 +1,82 @@
+# -*- coding: UTF-8 -*-
+import numpy as np
+from numpy import random
+import copy
+# 参数设定
+beta=5
+epsilon=0.05
+M=10
+
+# 随机生成p(x,y)
+p_x_y=np.mat(random.random(size=(4,10)))
+sum1=(p_x_y.sum(axis=1)).sum(axis=0)
+p_x_y=p_x_y/sum1
+
+
+#  随机生成P(t|x):
+p_tx = np.mat(np.zeros((3, 10)))
+for i in range(0, 10):
+    temp = np.mat(random.random((3, 1)))
+    p_tx[:, i] = temp / temp.sum(axis=0)
+# 计算p(t)
+p_x = np.mat(p_x_y.sum(axis=0))
+p_t = np.mat(np.zeros((1, 3)))
+for i in range(0, 3):
+    p_t[0, i] = np.multiply(p_x[0, :], p_tx[i, :]).sum(axis=1)
+# 计算p(y|t)
+p_yt = np.mat(np.zeros((4, 3)))
+for i in range(0, 4):
+    for j in range(0, 3):
+        p_yt[i, j] = np.multiply(p_x_y[i, :], p_tx[j, :]).sum(axis=1) / p_t[0, j]
+
+# 计算p(x)
+p_x = p_x_y.sum(axis=0)
+
+# 计算p(y|x)
+p_yx = np.mat(np.zeros((4, 10)))
+for i in range(0, 4):
+    for j in range(0, 10):
+        p_yx[i, j] = p_x_y[i, j] / p_x[0, j]
+Djs = np.ones(p_x_y[0, :].size)
+
+def D_KL(p_yx,p_yt,x,t):
+    Dkl=np.multiply(p_yx[:,x],np.log(p_yx[:,x].T/p_yt[:,t].T))
+    return Dkl
+
+def norm(x,beta):
+    sum=0
+    for t in range(0,p_t.size):
+        sum+=p_t[0,t]*np.exp(-beta*D_KL(p_yx,p_yt,x,t))
+    return sum
+# JS距离
+def D_JS(p1, p2, x1, x2):
+    Djs=0.5*D_KL(p1,0.5*(p1+p2),x1,x2)+0.5*D_KL(p2,0.5*(p1+p2),x1,x2)
+    return Djs
+
+def iIB(p_x_y,epsilon,M,beta):
+    y_size = p_x_y[:, 0].size
+    x_size = p_x_y[0, :].size
+    t_size = M
+    # 迭代过程
+    while Djs.max()>epsilon:
+        p_tx_f=copy.copy(p_tx)
+        for x in range(0, x_size):
+            for t in range(0, t_size):
+                p_tx[t, x] = (p_t[0, t] * np.exp(-beta * D_KL(p_yx, p_yt, x, t))) / norm(x, beta)
+
+        for t in range(0,t_size):
+            p_t[0, t] = np.multiply(p_x[0, :], p_tx[t, :]).sum(axis=1)
+
+        for y in range(0, y_size):
+            for t in range(0, t_size):
+                p_yt[y, t] = np.multiply(p_x_y[y, :], p_tx[t, :]).sum(axis=1) / p_t[0, t]
+
+        for x in range(0,x_size):
+            Djs[x]=D_JS(p_tx,p_tx_f,x,x)
+
+
+    print p_tx
+
+iIB(p_x_y,epsilon,M,beta)
+
+
